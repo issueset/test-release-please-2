@@ -1,0 +1,29 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/v17.10.3/schemas/config.json",
+  "release-type": "simple",
+  "include-component-in-tag": false,
+  "bump-minor-pre-major": true,
+  "draft": true,
+  "force-tag-creation": true,
+  "always-update": true,
+  "pull-request-title-pattern": "chore: release ${version}",
+  "packages": {
+    ".": {
+      "package-name": "test-release-please-2",
+      "changelog-path": "CHANGELOG.md",
+      "exclude-paths": ["docs", ".github"],
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": ".github/release-please/manifest.beta.json",
+          "jsonpath": "$['.']"
+        }
+      ]
+    }
+  }
+}

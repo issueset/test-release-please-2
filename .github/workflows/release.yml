@@ -1,0 +1,76 @@
+name: Release
+
+# Stub for the real build/sign/notarize pipeline: it produces a text file
+# instead of signed DMGs, but fills and undrafts the release-please draft
+# release exactly like the real publish step does, so the release lifecycle
+# (draft with tag -> assets uploaded -> undrafted, prerelease/latest flags by
+# version suffix) can be tested end to end.
+
+on:
+  # The normal path: called by release-please.yml right after it creates the
+  # draft release for a merged Release PR.
+  workflow_call:
+    inputs:
+      tag:
+        description: The release tag (v<version>) created by release-please
+        type: string
+        required: true
+      commit:
+        description: Immutable commit targeted by the release tag
+        type: string
+        required: true
+  # Manual retry path: run on the release commit; the tag is derived from
+  # package.json.
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Publish release (stub)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.commit || github.sha }}
+
+      - name: Verify the release tag matches package.json
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          version="$(jq -r .version package.json)"
+          tag="${INPUT_TAG:-v${version}}"
+          if [ "$tag" != "v${version}" ]; then
+            echo "::error::release tag ${tag} but package.json says ${version}"
+            exit 1
+          fi
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Build stub artifacts
+        run: |
+          mkdir -p dist
+          echo "stub build for ${TAG} at commit ${GITHUB_SHA}" > "dist/app_${VERSION}.txt"
+
+      # gh resolves draft releases by tag name (it falls back to listing when
+      # releases/tags/<tag> 404s on a draft). Undrafting last keeps the
+      # release invisible until every asset is in place, and the prerelease
+      # and latest flags come from the version suffix alone.
+      - name: Fill and undraft the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$TAG" dist/* --clobber
+          if [[ "$VERSION" == *-* ]]; then
+            gh release edit "$TAG" --title "Stub App $VERSION" \
+              --prerelease --latest=false --draft=false
+          else
+            gh release edit "$TAG" --title "Stub App $VERSION" \
+              --prerelease=false --latest --draft=false
+          fi
+          echo "published $TAG"

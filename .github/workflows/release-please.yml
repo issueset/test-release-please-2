@@ -1,0 +1,86 @@
+name: Release PR
+
+# Two release-please channels share the master branch: every push maintains
+# both Release PRs side by side. Merging the beta PR (version X.Y.Z-beta.N)
+# publishes a prerelease; merging the stable PR (version X.Y.Z) publishes a
+# stable release. The channel is carried entirely by the version suffix, so
+# release.yml needs no channel knowledge. Everything runs on GITHUB_TOKEN
+# (no PAT), and tags created with GITHUB_TOKEN cannot start workflows, so
+# publishing chains through job outputs instead of tag pushes.
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Maintain the Release PRs
+    runs-on: ubuntu-latest
+    # The package lives at the repo root ("."), so each pass emits its outputs
+    # without a path prefix. The channels never release from the same push:
+    # a push merges at most one Release PR, and the two passes only create
+    # releases for merged PRs on their own head branch (the component in the
+    # branch name tells them apart).
+    outputs:
+      stable_created: ${{ steps.stable.outputs.releases_created }}
+      stable_tag: ${{ steps.stable.outputs.tag_name }}
+      stable_commit: ${{ steps.stable.outputs.sha }}
+      beta_created: ${{ steps.beta.outputs.releases_created }}
+      beta_tag: ${{ steps.beta.outputs.tag_name }}
+      beta_commit: ${{ steps.beta.outputs.sha }}
+    steps:
+      # The stable pass must run first. The stable Release PR also advances
+      # manifest.beta.json to the stable version (an extra-file in
+      # config.stable.json), so the push that merges it has to create the
+      # v<version> tag before the beta pass goes looking for that tag as its
+      # new anchor.
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: stable
+        with:
+          target-branch: master
+          config-file: .github/release-please/config.stable.json
+          manifest-file: .github/release-please/manifest.stable.json
+
+      # After a stable release this pass finds no releasable commits and
+      # leaves the superseded beta Release PR alone. That PR's diff conflicts
+      # with master (the stable PR rewrote the same files), so it cannot be
+      # merged by accident; the next releasable commit rewrites it in place,
+      # because release-please reuses the per-component head branch.
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: beta
+        with:
+          target-branch: master
+          config-file: .github/release-please/config.beta.json
+          manifest-file: .github/release-please/manifest.beta.json
+
+  # Merging a Release PR makes its channel's pass above create a draft release
+  # and output its tag. Chain straight into the (stub) publish pipeline with
+  # the tag resolved to its immutable commit once; the called workflow checks
+  # out that SHA rather than resolving the tag name again.
+  publish-release-stable:
+    name: Build and publish the stable release
+    needs: release-please
+    if: needs.release-please.outputs.stable_created == 'true'
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.release-please.outputs.stable_tag }}
+      commit: ${{ needs.release-please.outputs.stable_commit }}
+    secrets: inherit
+
+  publish-release-beta:
+    name: Build and publish the beta release
+    needs: release-please
+    if: needs.release-please.outputs.beta_created == 'true'
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.release-please.outputs.beta_tag }}
+      commit: ${{ needs.release-please.outputs.beta_commit }}
+    secrets: inherit
