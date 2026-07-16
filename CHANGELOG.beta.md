@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0-beta.1](https://github.com/issueset/test-release-please-2/compare/v0.2.0-beta...v0.2.0-beta.1) (2026-07-16)
+
+
+### Bug Fixes
+
+* update 3 ([0fc8750](https://github.com/issueset/test-release-please-2/commit/0fc87508cd87adee1a2e4805c2de2c0a1c39bdbe))
+
 ## [0.2.0-beta](https://github.com/issueset/test-release-please-2/compare/v0.1.1...v0.2.0-beta) (2026-07-16)
 
 
